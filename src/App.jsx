@@ -3,7 +3,7 @@ import { Routes, Route } from "react-router-dom";
 import Login from './pages/Login.jsx';
 import SignUp from './pages/SignUp.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
-import Dashboard from './pages/dashboard/dashboard.jsx';
+import Dashboard from './pages/dashboard/Dashboard.jsx';
 import Chats from './components/chat/Chats.jsx';
 import Setting from './components/setting/Setting.jsx';
 const App = () => {
