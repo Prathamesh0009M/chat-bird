@@ -31,7 +31,7 @@ const Chats = () => {
     const fetchConversationDetails = async () => {
       try {
         const response = await fetch(
-          `http://localhost:5000/api/chats/conversation/${conversationId}`,
+          `https://chat-bird-backend.onrender.com/api/chats/conversation/${conversationId}`,
           {
             headers: {
               'Authorization': `Bearer ${token}`
@@ -39,13 +39,13 @@ const Chats = () => {
           }
         );
         const data = await response.json();
-        
+
         console.log('💡 Conversation details:', data);
-        
+
         // Find the other participant (recipient)
         const recipient = data.participants?.find(p => p._id !== userId);
         setRecipientInfo(recipient);
-        
+
         console.log('💡 Recipient info:', recipient);
       } catch (error) {
         console.error('❌ Error fetching conversation details:', error);
@@ -60,8 +60,8 @@ const Chats = () => {
   // Initialize Socket Connection
   useEffect(() => {
     console.log('💡 Initializing socket connection...');
-    
-    const newSocket = io('http://localhost:5000', {
+
+    const newSocket = io('https://chat-bird-backend.onrender.com', {
       transports: ['websocket'],
       reconnection: true,
       reconnectionAttempts: 5,
@@ -71,11 +71,11 @@ const Chats = () => {
     newSocket.on('connect', () => {
       console.log('✅ Socket connected:', newSocket.id);
       setIsConnected(true);
-      
+
       // Register user with socket
       console.log('📝 Registering user:', userId);
       newSocket.emit('register', { userId });
-      
+
       // Load chat history
       console.log('📜 Loading chat history for:', { conversationId, userId });
       newSocket.emit('loadChatHistory', { conversationId, userId });
@@ -96,7 +96,7 @@ const Chats = () => {
     // Listen for new text messages
     newSocket.on('receiveMessage', (messageData) => {
       console.log('📨 New message received:', messageData);
-      
+
       setMessages(prev => {
         // Check if message already exists
         const exists = prev.some(m => m.messageId === messageData.messageId);
@@ -104,7 +104,7 @@ const Chats = () => {
           console.log('⚠️ Message already exists, skipping');
           return prev;
         }
-        
+
         return [...prev, {
           messageId: messageData.messageId,
           text: messageData.text,
@@ -121,7 +121,7 @@ const Chats = () => {
     // Listen for new media messages
     newSocket.on('receiveMediaMessage', (messageData) => {
       console.log('📸 New media message received:', messageData);
-      
+
       setMessages(prev => {
         // Check if message already exists
         const exists = prev.some(m => m.messageId === messageData.messageId);
@@ -129,7 +129,7 @@ const Chats = () => {
           console.log('⚠️ Media message already exists, skipping');
           return prev;
         }
-        
+
         return [...prev, {
           messageId: messageData.messageId,
           text: messageData.text,
@@ -163,17 +163,74 @@ const Chats = () => {
       console.log('🔌 Disconnecting socket...');
       newSocket.disconnect();
     };
-  }, [conversationId, userId]);
+  }, [conversationId, userId, userLanguage]);
 
   // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+  const [selectedLanguage, setSelectedLanguage] = useState('en');
+  const [updatingLanguage, setUpdatingLanguage] = useState(false);
+
+  // 2. Add this useEffect to initialize selected language from user data:
+  useEffect(() => {
+    setSelectedLanguage(userLanguage);
+  }, [userLanguage]);
+
+  const handleLanguageChange = async (e) => {
+    const newLanguage = e.target.value;
+    setSelectedLanguage(newLanguage);
+    setUpdatingLanguage(true);
+
+    try {
+      console.log('🌐 Updating preferred language to:', newLanguage);
+
+      const response = await fetch('https://chat-bird-backend.onrender.com/api/users/update-lang', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          preferredLanguage: newLanguage,
+          conversationId: conversationId
+        })
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        console.log('✅ Language updated successfully');
+
+        const updatedUserData = { ...userData, preferredLanguage: newLanguage };
+        localStorage.setItem('user', JSON.stringify(updatedUserData));
+
+        // 🔥 THIS IS IMPORTANT
+        if (socket && isConnected) {
+          socket.emit("reloadChatHistory", {
+            conversationId,
+            userId
+          });
+        }
+      }
+      else {
+        console.error('❌ Failed to update language:', result.message);
+        alert(result.message || 'Failed to update language preference');
+        setSelectedLanguage(userLanguage); // Revert on error
+      }
+    } catch (error) {
+      console.error('❌ Error updating language:', error);
+      alert('Failed to update language preference');
+      setSelectedLanguage(userLanguage); // Revert on error
+    } finally {
+      setUpdatingLanguage(false);
+    }
+  };
 
   // Send text message
   const handleSendMessage = (e) => {
     e.preventDefault();
-    
+
     if (!inputMessage.trim() || !socket || !isConnected) {
       console.warn('⚠️ Cannot send message:', {
         hasMessage: !!inputMessage.trim(),
@@ -187,13 +244,12 @@ const Chats = () => {
       conversationId,
       senderId: userId,
       text: inputMessage.trim(),
-      language: userLanguage,
+      language: selectedLanguage, // Changed from userLanguage
       recipients: recipientInfo?._id ? [recipientInfo._id] : []
     };
-
     console.log('📤 Sending message:', messageData);
     socket.emit('sendMessage', messageData);
-    
+
     setInputMessage('');
   };
 
@@ -205,7 +261,7 @@ const Chats = () => {
     // Validate file type
     const isImage = file.type.startsWith('image/');
     const isVideo = file.type.startsWith('video/');
-    
+
     if (!isImage && !isVideo) {
       alert('Please select an image or video file');
       return;
@@ -219,22 +275,22 @@ const Chats = () => {
     }
 
     const messageType = isVideo ? 'video' : 'image';
-    
+
     try {
       setUploadingMedia(true);
-      
+
       const formData = new FormData();
       formData.append('file', file);
       formData.append('conversationId', conversationId);
       formData.append('messageType', messageType);
-      
-      console.log('📤 Uploading media:', { 
-        fileName: file.name, 
-        fileSize: file.size, 
-        messageType 
+
+      console.log('📤 Uploading media:', {
+        fileName: file.name,
+        fileSize: file.size,
+        messageType
       });
 
-      const response = await fetch('http://localhost:5000/api/conv-media/upload', {
+      const response = await fetch('https://chat-bird-backend.onrender.com/api/conv-media/upload', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -243,7 +299,7 @@ const Chats = () => {
       });
 
       const result = await response.json();
-      
+
       if (result.success) {
         console.log('✅ Media uploaded successfully:', result);
         // Media will be delivered via socket automatically
@@ -271,9 +327,9 @@ const Chats = () => {
   // Format timestamp
   const formatTime = (timestamp) => {
     const date = new Date(timestamp);
-    return date.toLocaleTimeString('en-US', { 
-      hour: '2-digit', 
-      minute: '2-digit' 
+    return date.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit'
     });
   };
 
@@ -283,23 +339,23 @@ const Chats = () => {
     const isMediaMessage = msg.messageType === 'image' || msg.messageType === 'video';
 
     return (
-      <div 
-        key={msg.messageId} 
+      <div
+        key={msg.messageId}
         className={`message ${msg.isMine ? 'message-mine' : 'message-theirs'}`}
       >
         <div className="message-content">
           {!msg.isMine && (
             <div className="message-sender">{msg.senderName}</div>
           )}
-          
+
           <div className="message-bubble">
             {/* Render media if it exists */}
             {isMediaMessage && msg.media && (
               <div className="message-media">
                 {msg.messageType === 'image' && (
-                  <img 
-                    src={msg.media.url} 
-                    alt="Shared image" 
+                  <img
+                    src={msg.media.url}
+                    alt="Shared image"
                     className="media-image"
                     onError={(e) => {
                       console.error('Failed to load image:', msg.media.url);
@@ -308,9 +364,9 @@ const Chats = () => {
                   />
                 )}
                 {msg.messageType === 'video' && (
-                  <video 
-                    src={msg.media.url} 
-                    controls 
+                  <video
+                    src={msg.media.url}
+                    controls
                     className="media-video"
                     onError={(e) => {
                       console.error('Failed to load video:', msg.media.url);
@@ -319,10 +375,10 @@ const Chats = () => {
                 )}
               </div>
             )}
-            
+
             {/* Render text/caption */}
             {msg.text && <p className="message-text">{msg.text}</p>}
-            
+
             <div className="message-meta">
               <span className="message-time">{formatTime(msg.createdAt)}</span>
               {msg.lang && <span className="message-lang">{msg.lang}</span>}
@@ -358,9 +414,36 @@ const Chats = () => {
             </span>
           </div>
         </div>
-        <div className="language-info">
-          🌐 {userLanguage.toUpperCase()}
+        <div className="language-selector">
+          <label htmlFor="lang">Select language:</label>
+          <select
+            name="lang"
+            id="lang"
+            value={selectedLanguage}
+            // onChange={handleLanguageChange}
+            disabled={updatingLanguage}
+          >
+            <option value="en">English</option>
+            <option value="hi">Hindi</option>
+            <option value="mr">Marathi</option>
+            <option value="kn">Kannada</option>
+            <option value="es">Spanish</option>
+            <option value="fr">French</option>
+            <option value="de">German</option>
+            <option value="ja">Japanese</option>
+            <option value="zh">Chinese</option>
+            <option value="ar">Arabic</option>
+            <option value="pt">Portuguese</option>
+            <option value="ru">Russian</option>
+            <option value="it">Italian</option>
+          </select>
+          {updatingLanguage && <span className="updating-indicator">⏳</span>}
         </div>
+
+        <div className="language-info">
+          🌐 {selectedLanguage.toUpperCase()}
+        </div>
+
       </div>
 
       {/* Messages Container */}
@@ -372,7 +455,7 @@ const Chats = () => {
         ) : (
           messages.map((msg) => renderMessage(msg))
         )}
-        
+
         {/* Uploading indicator */}
         {uploadingMedia && (
           <div className="message message-mine">
@@ -383,7 +466,7 @@ const Chats = () => {
             </div>
           </div>
         )}
-        
+
         <div ref={messagesEndRef} />
       </div>
 
@@ -398,9 +481,9 @@ const Chats = () => {
             onChange={handleFileSelect}
             style={{ display: 'none' }}
           />
-          
+
           {/* Attach button */}
-          <button 
+          <button
             type="button"
             className="attach-button"
             onClick={handleAttachClick}
@@ -408,10 +491,10 @@ const Chats = () => {
             title="Attach image or video"
           >
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-              <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </button>
-          
+
           {/* Text input */}
           <input
             type="text"
@@ -421,15 +504,15 @@ const Chats = () => {
             onChange={(e) => setInputMessage(e.target.value)}
             disabled={!isConnected}
           />
-          
+
           {/* Send button */}
-          <button 
-            type="submit" 
+          <button
+            type="submit"
             className="send-button"
             disabled={!inputMessage.trim() || !isConnected}
           >
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-              <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </button>
         </div>

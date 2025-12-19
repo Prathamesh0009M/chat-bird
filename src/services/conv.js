@@ -1,7 +1,7 @@
 import axios from 'axios';
 export const axiosInstance = axios.create({});
 
-const API_URL = 'http://localhost:5000/api'; // Change this to your backend URL
+const API_URL = 'https://chat-bird-backend.onrender.com/api'; // Change this to your backend URL
 
 const apiConnector = (method, url, bodyData, headers, params) => {
     return axiosInstance({

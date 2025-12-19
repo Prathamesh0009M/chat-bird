@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import "./SignUp.css"; // External CSS file
 import { signupUser } from "../services/api.js";
+import { useNavigate } from "react-router-dom";
 
 const SignUp = () => {
   const [formData, setFormData] = useState({
@@ -9,7 +10,7 @@ const SignUp = () => {
     password: "",
     preferredLanguage: "en",
   });
-
+const navigate = useNavigate();
   const handleChange = (e) => {
     setFormData({ 
       ...formData, 
@@ -28,7 +29,8 @@ const SignUp = () => {
           formData.preferredLanguage
           );
         if (response ) {
-          console.log("Signup successful:", response.data);
+          console.log("Signup successful:", response);
+          navigate("/");
         }
           
       } catch (e) {

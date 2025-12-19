@@ -1,7 +1,7 @@
 import axios from 'axios';
 export const axiosInstance = axios.create({});
 
-const API_URL = 'http://localhost:5000/api'; // Change this to your backend URL
+const API_URL = 'https://chat-bird-backend.onrender.com/api'; // Change this to your backend URL
 
 const apiConnector = (method, url, bodyData, headers, params) => {
   return axiosInstance({
@@ -14,23 +14,24 @@ const apiConnector = (method, url, bodyData, headers, params) => {
 }
 
 
-export function signupUser(name, email, password, preferredLanguage) {
+export async function signupUser(name, email, password, preferredLanguage) {
   try {
-    const response = apiConnector(
+    const response = await apiConnector(
       'post',
       `${API_URL}/auth/signup`,
       { name, email, password, preferredLanguage },
       { 'Content-Type': 'application/json' }
     );
 
-    if (!response.data.success) {
-      console.error("Signup failed:", response.data.message);
+    if (!response?.data?.success) {
+      console.error("Signup failed:", response?.data?.message);
       return null;
     }
 
-    return response;
+    return response.data; // return actual data
   } catch (e) {
     console.error("Signup error:", e);
+    return null;
   }
 }
 
