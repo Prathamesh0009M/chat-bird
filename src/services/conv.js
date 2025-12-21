@@ -1,7 +1,7 @@
 import axios from 'axios';
 export const axiosInstance = axios.create({});
 
-const API_URL = 'https://chat-bird-backend.onrender.com/api'; // Change this to your backend URL
+const API_URL = `${import.meta.env.VITE_API_URL}`; // Change this to your backend URL
 
 const apiConnector = (method, url, bodyData, headers, params) => {
     return axiosInstance({
@@ -19,7 +19,7 @@ export const startConversation = async (userBId) => {
         const userId = userData ? userData._id : null;
         if (!userId || !userBId) {
             console.error("Both user IDs are required to start a conversation.");
-            return null;
+            return null;    
         }
         const response = await apiConnector(
             'post',

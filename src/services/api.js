@@ -1,7 +1,7 @@
 import axios from 'axios';
 export const axiosInstance = axios.create({});
 
-const API_URL = 'https://chat-bird-backend.onrender.com/api'; // Change this to your backend URL
+const API_URL = `${import.meta.env.VITE_API_URL}`; // Change this to your backend URL
 
 const apiConnector = (method, url, bodyData, headers, params) => {
   return axiosInstance({
@@ -13,6 +13,20 @@ const apiConnector = (method, url, bodyData, headers, params) => {
   })
 }
 
+export async function updateUserProfileService( profileData, token) {
+  try {
+    const response = await apiConnector(
+      'post',
+      `${API_URL}/conv-media/updateProfilePicture`,
+      profileData,
+      { Authorization: `Bearer ${token}` }
+    );
+    return response;
+  } catch (error) {
+    console.error("Error updating user profile:", error);
+    throw error;
+  }
+}
 
 export async function signupUser(name, email, password, preferredLanguage) {
   try {
